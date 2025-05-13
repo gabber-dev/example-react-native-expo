@@ -25,3 +25,6 @@ npx expo run:ios
 ## Running a Server
 
 This app makes use of the [example-server](https://github.com/gabber-dev/example-server) server. The server runs on port 4000 and is required to be running locally to connect start a realtime session via this app.
+
+## Compatibility Note
+This app is not yet compatible with Expo SDK 0.53 due to changes in the Expo ecosystem and dependencies. Ensure you are using a compatible version of Expo SDK as specified in the project's documentation or package.json file before proceeding with setup and installation.
