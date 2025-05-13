@@ -1,74 +1,166 @@
-import { Image, StyleSheet, Platform } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import {
+  View,
+  Button,
+  TextInput,
+  StyleSheet,
+  ScrollView,
+  Text,
+} from "react-native";
+import {
+  RealtimeSessionEngineProvider,
+  SDKConnectOptions,
+  useRealtimeSessionEngine,
+} from "gabber-client-react-native";
+import { useCallback, useState } from "react";
+import axios from "axios";
+import VolumeVisualizer from "@/components/VolumeVisualizer";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+  const [connectionOpts, setConnectionOpts] =
+    useState<SDKConnectOptions | null>(null);
+
+  const fetchConnectionOpts = useCallback(async () => {
+    try {
+      const response = await axios.post("http://10.0.2.2:4000/start_session");
+      setConnectionOpts({
+        connection_details: response.data.connection_details,
+      });
+    } catch (error) {
+      console.error("Error fetching connection options:", error);
+    }
+  }, []);
+
+  if (!connectionOpts) {
+    return (
+      <View style={styles.container}>
+        <Button
+          title="Start Session"
+          onPress={async () => {
+            console.log("Button pressed");
+            await fetchConnectionOpts();
+          }}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <RealtimeSessionEngineProvider connectionOpts={connectionOpts}>
+      <LiveComponent onDisconnect={() => setConnectionOpts(null)} />
+    </RealtimeSessionEngineProvider>
+  );
+}
+
+type LiveComponentProps = {
+  onDisconnect: () => void;
+};
+
+function LiveComponent({ onDisconnect }: LiveComponentProps) {
+  const {
+    setMicrophoneEnabled,
+    microphoneEnabled,
+    sendChatMessage,
+    messages,
+    agentState,
+    connectionState,
+  } = useRealtimeSessionEngine();
+  const [chatInput, setChatInput] = useState("");
+
+  const handleSendMessage = () => {
+    if (chatInput.trim()) {
+      sendChatMessage({ text: chatInput });
+      setChatInput(""); // Clear input after sending
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Display agentState and connectionState */}
+      <View style={styles.stateContainer}>
+        <Text style={styles.stateText}>Agent State: {agentState}</Text>
+        <Text style={styles.stateText}>
+          Connection State: {connectionState}
+        </Text>
+      </View>
+      <VolumeVisualizer color="#6200ea" />
+      <ScrollView style={styles.messageContainer}>
+        {messages.map((msg, index) => (
+          <View key={index} style={styles.messageBubble}>
+            <Text>{msg.text}</Text>
+          </View>
+        ))}
+      </ScrollView>
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.chatInput}
+          value={chatInput}
+          onChangeText={setChatInput}
+          placeholder="Type your message..."
+          onSubmitEditing={handleSendMessage}
+        />
+        <Button title="Send" onPress={handleSendMessage} />
+      </View>
+      <View style={styles.buttonContainer}>
+        <Button
+          title={microphoneEnabled ? "Disable Mic" : "Enable Mic"}
+          onPress={() => setMicrophoneEnabled(!microphoneEnabled)}
+        />
+        <View style={styles.buttonSpacer} />
+        <Button title="Disconnect" onPress={onDisconnect} />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    justifyContent: "flex-end",
+    padding: 16,
+    backgroundColor: "#f5f5f5",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  stateContainer: {
+    marginBottom: 16,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  stateText: {
+    fontSize: 14,
+    color: "#333",
+    marginBottom: 4,
+  },
+  messageContainer: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  messageBubble: {
+    backgroundColor: "#fff",
+    padding: 10,
+    borderRadius: 8,
+    marginVertical: 4,
+    maxWidth: "80%",
+    alignSelf: "flex-start",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  chatInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 8,
+    marginRight: 8,
+    backgroundColor: "#fff",
+  },
+  buttonContainer: {
+    alignItems: "center",
+  },
+  buttonSpacer: {
+    height: 16,
   },
 });
